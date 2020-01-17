@@ -1,0 +1,4 @@
+# There can only be one "on" time and one "off" time.
+# That could be improved to support multiple on/off times.
+on 10:30:00
+off 11:05:00

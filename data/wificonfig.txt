@@ -1,0 +1,6 @@
+ssid monstrosity
+password 91Manassas!
+broker broker.hivemq.com
+
+# This is the default MQTT port.  Maybe we shouldn't have to specify it?
+mqttport 1883
