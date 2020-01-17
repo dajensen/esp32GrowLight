@@ -1,13 +1,13 @@
 //#include <Arduino.h>
+#include "TimeSpec.h"
 #include "wifi_config.h"
-#include <WiFi.h>
-#include <PubSubClient.h>
-#include "blinker.h"
-#include "WifiComm.h"
-#include "MqttPublisher.h"
-#include "NTPComm.h"
 #include "timer_config.h"
-
+#include "blinker.h"
+#include <WiFi.h>
+#include "WifiComm.h"
+#include <PubSubClient.h>
+#include "MqttPublisher.h"
+#include <ezTime.h>
 
 // I could look up the time zone using an API from TimezoneDB.  Got an API key to do it.
 // http://api.timezonedb.com/v2.1/list-time-zone?key=I0K9WRO2BVRO&format=json&country=US&zone=America/Denver
@@ -39,7 +39,8 @@ const int STATUS_LED_PIN = 10;
 blinker blinkStatus(STATUS_LED_PIN);
 WifiComm wifi_comm(blinkStatus);
 MqttPublisher *publisher = NULL;
-NTPComm ntp_comm(TIMEZONE);
+Timezone MountainTime;
+
 String uniqueId;
 boolean light_on = false;
 
@@ -50,34 +51,43 @@ static const char *LIGHTOFF_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Lighto
 
 void setup_network() {
   
-
 	// We start by connecting to a WiFi network
 	wifi_comm.Connect(cfg.ssid, cfg.password);
 
 	// This fills uniqueId with a string that includes a few bytes of the MAC address, so it's pretty unique.
 	wifi_comm.GetUniqueId(uniqueId, "growlight");
+  Serial.println("UniqueID: " + uniqueId);
 
   publisher = new MqttPublisher(wifi_comm.GetClient(), blinkStatus);
 	publisher->Configure(cfg.mqtt_server, cfg.mqtt_port, uniqueId);
   publisher->SetWill(String(OFFLINE_TOPIC), uniqueId);
+  waitForSync();  // from ezTime, means wait for NTP to get date and time.
+  Serial.println("UTC: " + UTC.dateTime());
+    
+  MountainTime.setLocation("America/Denver");
+  Serial.println("Mountain time: " + MountainTime.dateTime());
+  Serial.println("Hour: " + String(MountainTime.hour()) + " Minute: " + String(MountainTime.minute()));
 }
 
 void loop_network() {
+
 	if (!publisher->Connected()) {
 		publisher->Reconnect(LIGHTON_TOPIC, getOnlineMessage().c_str());
     publisher->Subscribe(LIGHTON_TOPIC, onLightOn);
     publisher->Subscribe(LIGHTOFF_TOPIC, onLightOff);
 	}
 	publisher->Loop();
+
 }
 
 String getOnlineMessage() {
   return uniqueId + ", " + light_on;
 }
 
+
 void setup() {
   Serial.begin(115200);
-  delay(500); // This is necessary for the ESP32
+  delay(5000); // This is necessary for the ESP32
   Serial.println("..... STARTING .....");
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
@@ -95,14 +105,14 @@ void loop() {
   checkLightState();
 } 
 
+
 void checkLightState() {
   const int PRINT_FREQUENCY = 30000;
   static int lastPrintTime = 0;
   int currentTime = millis();
   if(currentTime - lastPrintTime > PRINT_FREQUENCY) {
-    ntp_comm.update();
-    int current_second_of_day = ntp_comm.getSecondOfDay();
-    Serial.println(ntp_comm.getFormattedTime());
+    Serial.println("Mountain time: " + MountainTime.dateTime());
+    int current_second_of_day = MountainTime.hour() * SECONDS_PER_HOUR + MountainTime.minute() * SECONDS_PER_MINUTE + MountainTime.second();
     Serial.print("Second Of Day: " + String(current_second_of_day));
     Serial.println("");
     lastPrintTime = currentTime;

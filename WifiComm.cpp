@@ -13,7 +13,7 @@ void WifiComm::Connect(const char *ssid, const char *password) {
 	Serial.print("\n\nConnecting to ");
 	Serial.println(ssid);
 	  
-  WiFi.mode(WIFI_STA);
+//  WiFi.mode(WIFI_STA);
 	WiFi.begin(ssid, password);
 
   blink.startBlinking(100);

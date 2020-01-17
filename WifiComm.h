@@ -10,5 +10,3 @@ public:
 	WiFiClient &GetClient();
 	void GetUniqueId(String &id, const char *prefix);
 };
-
-
