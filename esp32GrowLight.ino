@@ -42,7 +42,9 @@ MqttPublisher *publisher = NULL;
 Timezone MountainTime;
 
 String uniqueId;
-boolean light_on = false;
+boolean light_state = false;
+boolean prev_desired_state = false;
+boolean manual_override = false;
 
 static const char *ONLINE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Online";
 static const char *OFFLINE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Offline";
@@ -81,7 +83,7 @@ void loop_network() {
 }
 
 String getOnlineMessage() {
-  return uniqueId + ", " + light_on;
+  return uniqueId + ", " + light_state;
 }
 
 
@@ -92,7 +94,7 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   blinkStatus.setup(true);
-  setLightState(true);
+  setLightState(false);
   pinMode(POWER_PIN, OUTPUT);
 
 	setup_network();
@@ -119,8 +121,16 @@ void checkLightState() {
 
     boolean desiredState = current_second_of_day > start_time.secondval() && current_second_of_day < stop_time.secondval();
     Serial.println("Desired light state: " + String(desiredState));
-    if(desiredState != light_on)
+    if(desiredState != light_state && (!manual_override || desiredState != prev_desired_state)){
       handleButtonPress();
+    }
+
+    if(desiredState != prev_desired_state) {
+      Serial.println("Clearing manual override");
+      manual_override = false;      
+    }
+      
+    prev_desired_state = desiredState;
   }
 }
 
@@ -140,8 +150,8 @@ void checkButtonPress() {
 }
 
 void handleButtonPress() {
-  light_on = !light_on;
-  if(light_on) {
+  light_state = !light_state;
+  if(light_state) {
     publisher->Publish(LIGHTON_TOPIC, uniqueId.c_str());
     setLightState(true);
   }
@@ -149,12 +159,14 @@ void handleButtonPress() {
     publisher->Publish(LIGHTOFF_TOPIC, uniqueId.c_str());  
     setLightState(false);
   }
+  manual_override = true;
 }
 
 void onLightOn(byte *msg, unsigned int len) {
   Serial.println("OnLightOn");
   if(strncmp((const char *)msg, uniqueId.c_str(), uniqueId.length()) == 0) {
     setLightState(true);
+    manual_override = true;
   }
 }
 
@@ -162,6 +174,7 @@ void onLightOff(byte *msg, unsigned int len) {
   Serial.println("OnLightOff");
   if(strncmp((const char *)msg, uniqueId.c_str(), uniqueId.length()) == 0) {
     setLightState(false);
+    manual_override = true;
   }
 }
 
@@ -172,5 +185,5 @@ void setLightState(bool onOff) {
     Serial.println("Light state: Off");
   
   digitalWrite(POWER_PIN, onOff);
-  light_on = onOff;
+  light_state = onOff;
 }
