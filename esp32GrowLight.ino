@@ -109,10 +109,10 @@ void loop() {
 
 
 void checkLightState() {
-  const int PRINT_FREQUENCY = 30000;
+  const int PRINT_FREQUENCY = 60000;
   static int lastPrintTime = 0;
   int currentTime = millis();
-  if(currentTime - lastPrintTime > PRINT_FREQUENCY) {
+  if(currentTime - lastPrintTime > PRINT_FREQUENCY || currentTime < PRINT_FREQUENCY) {
     Serial.println("Mountain time: " + MountainTime.dateTime());
     int current_second_of_day = MountainTime.hour() * SECONDS_PER_HOUR + MountainTime.minute() * SECONDS_PER_MINUTE + MountainTime.second();
     Serial.print("Second Of Day: " + String(current_second_of_day));
@@ -123,6 +123,7 @@ void checkLightState() {
     Serial.println("Desired light state: " + String(desiredState));
     if(desiredState != light_state && (!manual_override || desiredState != prev_desired_state)){
       handleButtonPress();
+      Serial.println("Set light_state to " + String(light_state));
     }
 
     if(desiredState != prev_desired_state) {
