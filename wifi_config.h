@@ -3,7 +3,7 @@ struct wifi_config {
     const char *ssid;
     const char *password;
     const char *mqtt_server;
-    const int mqtt_port;
+    const unsigned int mqtt_port;
 };
 
 // Configuration for the local network
