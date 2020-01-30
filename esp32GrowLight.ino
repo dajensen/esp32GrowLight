@@ -22,7 +22,7 @@ const int POWER_PIN = 26;
 const int BUTTON_PIN = 37;
 
 static const char *ENUMERATE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Enumerate";
-static const char *ONLINE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Online";
+static const char *STATUS_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Status";
 static const char *OFFLINE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Offline";
 static const char *LIGHTON_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/LightOn";
 static const char *LIGHTOFF_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/LightOff";
@@ -39,6 +39,21 @@ void mqttCallback(const char *topic, byte* payload, unsigned int len) {
   }
 }
 
+void PrintMacAddr(const unsigned char *mac) {
+  Serial.print("MAC: ");
+  Serial.print(mac[5],HEX);
+  Serial.print(":");
+  Serial.print(mac[4],HEX);
+  Serial.print(":");
+  Serial.print(mac[3],HEX);
+  Serial.print(":");
+  Serial.print(mac[2],HEX);
+  Serial.print(":");
+  Serial.print(mac[1],HEX);
+  Serial.print(":");
+  Serial.println(mac[0],HEX);
+}
+
 void GetUniqueId(String &id, const char *prefix)
 {
 const int WL_MAC_ADDR_LENGTH = 12;
@@ -48,29 +63,43 @@ const int WL_MAC_ADDR_LENGTH = 12;
   uint8_t mac[WL_MAC_ADDR_LENGTH];
   WiFi.macAddress(mac);
   String macID = "";
+  PrintMacAddr(mac);
+
+  if(mac[4] < 0x10)
+    macID += '0';
+  macID += String(mac[4], HEX);
   
-  if(mac[WL_MAC_ADDR_LENGTH - 2] < 0x10)
+  if(mac[5] < 0x10)
     macID += '0';
-  macID += String(mac[WL_MAC_ADDR_LENGTH - 2], HEX);
-  if(mac[WL_MAC_ADDR_LENGTH - 1] < 0x10)
-    macID += '0';
-  macID += String(mac[WL_MAC_ADDR_LENGTH - 1], HEX);
+  macID += String(mac[5], HEX);
   
   macID.toUpperCase();
   id = String(prefix) + "-" + macID;
 }
 
+void create_status_message(String &dest, String id, boolean status) {
+  dest = id + "," + String(status);
+}
+
 void connect_mqtt(PubSubClient &client, const char *server, const unsigned int port, const char *id) {
   client.setServer(server, port);
+  delay(5000);    // This is required for the esp32 mqtt library.  Otherwise the whole device sometimes hangs when a reconnect happens.  Others are having the same trouble.
   client.connect(id);
+
   while(!client.connected()) {
+    // This is a bad block of code because it doesn't do anything to reconnect WiFi.  That's something that should be done.
+    if(WiFi.status() != WL_CONNECTED)
+        printStatus("DISCONNECTED FROM WiFi ...", "");
     delay(500);
     Serial.print(":");
   }
  Serial.println("After connecting: " + String(client.connected()));
  Serial.println("Mqtt State: " + String(client.state()));
 
- client.publish(ONLINE_TOPIC, id);
+  String msg;
+  create_status_message(msg, id, light_state);
+ client.publish(STATUS_TOPIC, msg.c_str());
+ Serial.println("Published: " + msg);
  client.subscribe(ENUMERATE_TOPIC);
  client.subscribe(LIGHTON_TOPIC);
  client.subscribe(LIGHTOFF_TOPIC);
@@ -134,21 +163,20 @@ void setup() {
   initLCD();
     
   Serial.begin(115200);
-  delay(5000); // This is necessary for the ESP32 to get serial messages
-  Serial.println("..... STARTING 1 .....");
-  printStatus("... Connecting to wifi ...", "");
+  //delay(5000); // This is necessary for the ESP32 to get serial messages
+  Serial.println("..... STARTING .....");
+  printStatus("Connecting to WiFi ...", "");
   WiFi.begin(cfg.ssid, cfg.password);
   while (WiFi.status() != WL_CONNECTED) {
-		delay(1000);
-    Serial.print(".");
+		delay(100);
 	}
-  GetUniqueId(uniqueId, "testapp");
+  GetUniqueId(uniqueId, "Growlight");
   Serial.println("UniqueID: " + uniqueId);
-  printStatus("Connected to wifi", "Connecting to MQTT ...");
+  printStatus("Connected to WiFi", "Connecting to MQTT ...");
  
   mqttClient.setCallback(mqttCallback);
   connect_mqtt(mqttClient, cfg.mqtt_server, cfg.mqtt_port, uniqueId.c_str());
-  printStatus("Connected to wifi", "Connected to MQTT");
+  printStatus("Connected to WiFi", "Connected to MQTT");
 
   waitForSync();  // from ezTime, means wait for NTP to get date and time.
   
@@ -161,7 +189,7 @@ void loop() {
 	mqttClient.loop();
   if(!mqttClient.connected()){
     Serial.print("-");
-    printStatus("Connected to wifi", "Connecting to MQTT ...");
+    printStatus("Connected to WiFi", "Connecting to MQTT ...");
     connect_mqtt(mqttClient, cfg.mqtt_server, cfg.mqtt_port, uniqueId.c_str());
     printStatus("Connected to wifi", "Connected to MQTT");
   }
@@ -171,7 +199,9 @@ void loop() {
 
 void onEnumerate(byte *msg, unsigned int len) {
   Serial.println("Enumerate");
-  mqttClient.publish(ONLINE_TOPIC, uniqueId.c_str());
+  String topicMsg;
+  create_status_message(topicMsg, uniqueId, light_state);
+  mqttClient.publish(STATUS_TOPIC, topicMsg.c_str());
 }
 
 void onLightOn(byte *msg, unsigned int len) {
@@ -206,15 +236,7 @@ void checkButtonPress() {
 }
 
 void handleButtonPress() {
-  light_state = !light_state;
-  if(light_state) {
-    mqttClient.publish(LIGHTON_TOPIC, uniqueId.c_str());
-    setLightState(true);
-  }
-  else {
-    mqttClient.publish(LIGHTOFF_TOPIC, uniqueId.c_str());  
-    setLightState(false);
-  }
+  setLightState(!light_state);
   manual_override = true;
 }
 
@@ -227,4 +249,8 @@ void handleButtonPress() {
   digitalWrite(POWER_PIN, onOff);
   digitalWrite(STATUS_LED, !onOff);    // Inverted for the built-in light
   light_state = onOff;
+
+  String msg;
+  create_status_message(msg, uniqueId, light_state);
+  mqttClient.publish(STATUS_TOPIC, msg.c_str());
 }
