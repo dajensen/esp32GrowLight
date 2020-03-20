@@ -1,6 +1,6 @@
 #include "wifi_config.h"
 #include <WiFi.h>
-#include <PubSubClient.h>
+//#include <PubSubClient.h>
 
 #include "TimeSpec.h"
 #include "timer_config.h"
@@ -10,7 +10,7 @@
   
 WiFiClient wifiClient;
 String uniqueId;
-PubSubClient mqttClient(wifiClient);
+//PubSubClient mqttClient(wifiClient);
 Timezone LocalTime;
 #define LOCAL_TIMEZONE "America/Denver"
 boolean light_state = false;
@@ -21,13 +21,14 @@ const int STATUS_LED = 10;
 const int POWER_PIN = 26;
 const int BUTTON_PIN = 37;
 
+/*
 static const char *ENUMERATE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Enumerate";
 static const char *STATUS_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Status";
 static const char *OFFLINE_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/Offline";
 static const char *LIGHTON_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/LightOn";
 static const char *LIGHTOFF_TOPIC = "616b7b49-aab4-4cbb-a7a8-ba7ed744dc11/LightOff";
 
-void mqttCallback(const char *topic, byte* payload, unsigned int len) {
+void mqttCallback(char *topic, byte* payload, unsigned int len) {
   if(strcmp(topic, ENUMERATE_TOPIC) == 0) {
     onEnumerate(payload, len);
   }
@@ -38,6 +39,7 @@ void mqttCallback(const char *topic, byte* payload, unsigned int len) {
     onLightOff(payload, len);
   }
 }
+*/
 
 void PrintMacAddr(const unsigned char *mac) {
   Serial.print("MAC: ");
@@ -80,7 +82,7 @@ const int WL_MAC_ADDR_LENGTH = 12;
 void create_status_message(String &dest, String id, boolean status) {
   dest = id + "," + String(status);
 }
-
+/*
 void connect_mqtt(PubSubClient &client, const char *server, const unsigned int port, const char *id) {
   client.setServer(server, port);
   delay(5000);    // This is required for the esp32 mqtt library.  Otherwise the whole device sometimes hangs when a reconnect happens.  Others are having the same trouble.
@@ -104,6 +106,7 @@ void connect_mqtt(PubSubClient &client, const char *server, const unsigned int p
  client.subscribe(LIGHTON_TOPIC);
  client.subscribe(LIGHTOFF_TOPIC);
 }
+*/
 
 void check_timer() {
   const int CHECK_FREQUENCY = 5000;
@@ -172,12 +175,12 @@ void setup() {
 	}
   GetUniqueId(uniqueId, "Growlight");
   Serial.println("UniqueID: " + uniqueId);
-  printStatus("Connected to WiFi", "Connecting to MQTT ...");
- 
+  printStatus("Connected to WiFi", "NOT Connecting to MQTT ...");
+/* 
   mqttClient.setCallback(mqttCallback);
   connect_mqtt(mqttClient, cfg.mqtt_server, cfg.mqtt_port, uniqueId.c_str());
   printStatus("Connected to WiFi", "Connected to MQTT");
-
+*/
   waitForSync();  // from ezTime, means wait for NTP to get date and time.
   
   LocalTime.setLocation(LOCAL_TIMEZONE);
@@ -186,6 +189,7 @@ void setup() {
 }
 
 void loop() {
+/*
 	mqttClient.loop();
   if(!mqttClient.connected()){
     Serial.print("-");
@@ -193,6 +197,7 @@ void loop() {
     connect_mqtt(mqttClient, cfg.mqtt_server, cfg.mqtt_port, uniqueId.c_str());
     printStatus("Connected to wifi", "Connected to MQTT");
   }
+*/
   check_timer();
   checkButtonPress();
 } 
@@ -201,7 +206,7 @@ void onEnumerate(byte *msg, unsigned int len) {
   Serial.println("Enumerate");
   String topicMsg;
   create_status_message(topicMsg, uniqueId, light_state);
-  mqttClient.publish(STATUS_TOPIC, topicMsg.c_str());
+//  mqttClient.publish(STATUS_TOPIC, topicMsg.c_str());
 }
 
 void onLightOn(byte *msg, unsigned int len) {
@@ -252,5 +257,5 @@ void handleButtonPress() {
 
   String msg;
   create_status_message(msg, uniqueId, light_state);
-  mqttClient.publish(STATUS_TOPIC, msg.c_str());
+//  mqttClient.publish(STATUS_TOPIC, msg.c_str());
 }

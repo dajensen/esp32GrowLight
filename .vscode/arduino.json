@@ -1,0 +1,5 @@
+{
+    "board": "esp32:esp32:pico32",
+    "configuration": "UploadSpeed=115200,DebugLevel=none",
+    "sketch": "esp32GrowLight.ino"
+}
